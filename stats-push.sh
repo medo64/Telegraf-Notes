@@ -8,7 +8,7 @@ BUCKET=telegraf
 PATH="/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin:/root/bin"
 
 TIMESTAMP=`date +%s`
-HOSTNAME=`hostname -s`
+HOSTNAME=`hostname`
 OS=`uname -a | head -1 | awk '{print $1}'`
 
 
