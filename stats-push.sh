@@ -13,7 +13,7 @@ OS=`uname -a | head -1 | awk '{print $1}'`
 
 
 IS_TELEGRAF_ACTIVE=`systemctl is-active --quiet telegraf 2>/dev/null && echo 1 || echo 0`
-LINES=
+CONTENT=
 
 
 # CPU Load
@@ -23,7 +23,7 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
     LOAD_1M=`echo $LOAD | cut -d' ' -f1`
     LOAD_5M=`echo $LOAD | cut -d' ' -f2`
     LOAD_15M=`echo $LOAD | cut -d' ' -f3`
-    LINES="$LINES""system,host=$HOSTNAME load1=${LOAD_1M},load5=${LOAD_5M},load15=${LOAD_15M} $TIMESTAMP"$'\n'
+    CONTENT="$CONTENT""system,host=$HOSTNAME load1=${LOAD_1M},load5=${LOAD_5M},load15=${LOAD_15M} $TIMESTAMP"$'\n'
 
     if [[ "$OS" == "FreeBSD" ]]; then
         CPU_IDLE_PERCENT=`vmstat 1 2 | tail -1 | awk '{print $19}'`
@@ -32,7 +32,7 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
     fi
     if [[ "$CPU_IDLE_PERCENT" != "" ]]; then
         CPU_BUSY_PERCENT=`echo $CPU_IDLE_PERCENT | awk '{print 100-$1}'`
-        LINES="$LINES""cpu,host=$HOSTNAME,cpu=cpu-total usage_idle=${CPU_IDLE_PERCENT},usage_busy=${CPU_BUSY_PERCENT} $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""cpu,host=$HOSTNAME,cpu=cpu-total usage_idle=${CPU_IDLE_PERCENT},usage_busy=${CPU_BUSY_PERCENT} $TIMESTAMP"$'\n'
     fi
 fi
 
@@ -55,7 +55,7 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
         fi
     fi
     if [[ "$CPU_TEMPERATURE" != "" ]]; then
-        LINES="$LINES""temp,host=$HOSTNAME,sensor=cpu temp=${CPU_TEMPERATURE} $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""temp,host=$HOSTNAME,sensor=cpu temp=${CPU_TEMPERATURE} $TIMESTAMP"$'\n'
     fi
 fi
 
@@ -67,7 +67,7 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
         MEMORY_FREE=`sysctl -n vm.stats.vm.v_free_count vm.stats.vm.v_page_size 2>/dev/null | xargs | awk '{print $1*$2}'`
         MEMORY_TOTAL=`sysctl -n vm.stats.vm.v_page_count vm.stats.vm.v_page_size 2>/dev/null | xargs | awk '{print $1*$2}'`
         MEMORY_USED=$(( MEMORY_TOTAL - MEMORY_FREE ))
-        LINES="$LINES""mem,host=$HOSTNAME available=${MEMORY_FREE}i,free=${MEMORY_FREE}i,used=${MEMORY_USED}i,total=${MEMORY_TOTAL}i $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""mem,host=$HOSTNAME available=${MEMORY_FREE}i,free=${MEMORY_FREE}i,used=${MEMORY_USED}i,total=${MEMORY_TOTAL}i $TIMESTAMP"$'\n'
     else
         MEMORY_AVAILABLE=`free -b 2>/dev/null | grep Mem | awk '{print $7}'`
         MEMORY_FREE=`free -b 2>/dev/null | egrep '^Mem:' | awk '{print $4}'`
@@ -76,8 +76,8 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
         SWAP_FREE=`free -b 2>/dev/null | egrep '^Swap:' | awk '{print $4}'`
         SWAP_USED=`free -b 2>/dev/null | egrep '^Swap:' | awk '{print $3}'`
         SWAP_TOTAL=`free -b 2>/dev/null | egrep '^Swap:' | awk '{print $2}'`
-        LINES="$LINES""mem,host=$HOSTNAME available=${MEMORY_AVAILABLE}i,free=${MEMORY_FREE}i,used=${MEMORY_USED}i,total=${MEMORY_TOTAL}i,swap_free=${SWAP_FREE}i,swap_used=${SWAP_USED}i,swap_total=${SWAP_TOTAL}i $TIMESTAMP"$'\n'
-        LINES="$LINES""swap,host=$HOSTNAME free=${SWAP_FREE}i,used=${SWAP_USED}i,total=${SWAP_TOTAL}i $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""mem,host=$HOSTNAME available=${MEMORY_AVAILABLE}i,free=${MEMORY_FREE}i,used=${MEMORY_USED}i,total=${MEMORY_TOTAL}i,swap_free=${SWAP_FREE}i,swap_used=${SWAP_USED}i,swap_total=${SWAP_TOTAL}i $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""swap,host=$HOSTNAME free=${SWAP_FREE}i,used=${SWAP_USED}i,total=${SWAP_TOTAL}i $TIMESTAMP"$'\n'
     fi
 fi
 
@@ -93,7 +93,7 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
         DISK_USED=`echo "$LINE" | awk '{printf "%.0f", $4 * 1024}'`
         DISK_TOTAL=`echo "$LINE" | awk '{printf "%.0f", $3 * 1024}'`
         DISK_PATH=`echo "$LINE" | awk '{print $7}'`
-        LINES="$LINES""disk,host=$HOSTNAME,path=$DISK_PATH,device=$DISK_DEVICE,fstype=$DISK_FSTYPE free=${DISK_FREE}i,used=${DISK_USED}i,total=${DISK_TOTAL}i $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""disk,host=$HOSTNAME,path=$DISK_PATH,device=$DISK_DEVICE,fstype=$DISK_FSTYPE free=${DISK_FREE}i,used=${DISK_USED}i,total=${DISK_TOTAL}i $TIMESTAMP"$'\n'
     done <<< $(df -PTk | egrep -v "\s(tmpfs|devtmpfs|devfs|iso9660|overlay|aufs|squashfs)\s" | tail -n+2)
 fi
 
@@ -106,7 +106,7 @@ if [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only send if telegraf is not activ
         POOL_FREE=`echo $LINE | cut -d' ' -f2`
         POOL_ALLOCATED=`echo $LINE | cut -d' ' -f3`
         POOL_SIZE=`echo $LINE | cut -d' ' -f4`
-        LINES="$LINES""zfs,host=$HOSTNAME,pools=$POOL_NAME free=${POOL_FREE}i,used=${POOL_ALLOCATED}i,total=${POOL_SIZE}i $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""zfs,host=$HOSTNAME,pools=$POOL_NAME free=${POOL_FREE}i,used=${POOL_ALLOCATED}i,total=${POOL_SIZE}i $TIMESTAMP"$'\n'
     done <<< $(zpool list -pH -o name,free,allocated,size)
 fi
 
@@ -117,15 +117,15 @@ if [[ "$OS" != "FreeBSD" ]] || [[ "$IS_TELEGRAF_ACTIVE" -eq 0 ]]; then  # only s
         DATASET_USED=`echo $LINE | cut -d' ' -f3`
         DATASET_USED_SNAPSHOT=`echo $LINE | cut -d' ' -f4`
         DATASET_USED_DATASET=`echo $LINE | cut -d' ' -f5`
-        LINES="$LINES""zfs_dataset,host=$HOSTNAME,dataset=$DATASET_NAME avail=${DATASET_AVAILABLE}i,used=${DATASET_USED}i,usedsnap=${DATASET_USED_SNAPSHOT}i,usedds=${DATASET_USED_DATASET}i $TIMESTAMP"$'\n'
+        CONTENT="$CONTENT""zfs_dataset,host=$HOSTNAME,dataset=$DATASET_NAME avail=${DATASET_AVAILABLE}i,used=${DATASET_USED}i,usedsnap=${DATASET_USED_SNAPSHOT}i,usedds=${DATASET_USED_DATASET}i $TIMESTAMP"$'\n'
     done <<< $(zfs list -pH -o name,available,used,usedbysnapshots,usedbydataset)
 fi
 
 
 # Send
 
-if [[ "$LINES" != "" ]]; then
-    echo "$LINES"
-    CONTENT_LEN=$(echo -en ${LINES} | wc -c)
-    echo -ne "POST /api/v2/write?bucket=${BUCKET}&precision=s HTTP/1.0\r\nHost: $HOST\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ${CONTENT_LEN}\r\n\r\n${LINES}" | nc -w 15 $HOST $PORT
+if [[ "$CONTENT" != "" ]]; then
+    echo "$CONTENT"
+    CONTENT_LEN=$(echo -en ${CONTENT} | wc -c)
+    echo -ne "POST /api/v2/write?bucket=${BUCKET}&precision=s HTTP/1.0\r\nHost: $HOST\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: ${CONTENT_LEN}\r\n\r\n${CONTENT}" | nc -w 15 $HOST $PORT
 fi
